@@ -25,23 +25,30 @@ import type {
  *   })
  */
 
-interface PrismaDelegateLike<TRow> {
-  create(args: { data: Record<string, unknown> }): Promise<TRow>;
-  findUnique(args: { where: { id: string } }): Promise<TRow | null>;
-  findMany(args: Record<string, unknown>): Promise<TRow[]>;
-  update(args: { where: { id: string }; data: Record<string, unknown> }): Promise<TRow>;
-  delete(args: { where: { id: string } }): Promise<TRow>;
+/**
+ * Tipagem deliberadamente frouxa — delegates do Prisma têm generics complexos
+ * (DefaultArgs, PrismaClientOptions, shape do model com campos do projeto)
+ * que mudam por projeto. O adapter castea internamente os retornos pra
+ * Record<string, unknown> e depois pra ConversationRow/MessageRow via funções
+ * `rowTo*`, então o tipo do delegate só precisa permitir as chamadas.
+ */
+interface PrismaDelegateLike {
+  create(args: { data: Record<string, unknown> }): Promise<unknown>;
+  findUnique(args: { where: { id: string } }): Promise<unknown>;
+  findMany(args: Record<string, unknown>): Promise<unknown>;
+  update(args: { where: { id: string }; data: Record<string, unknown> }): Promise<unknown>;
+  delete(args: { where: { id: string } }): Promise<unknown>;
 }
 
 interface PrismaClientLike {
-  conversation: PrismaDelegateLike<ConversationRow>;
-  message: PrismaDelegateLike<MessageRow>;
+  conversation: PrismaDelegateLike;
+  message: PrismaDelegateLike;
 }
 
 interface PrismaChatStoreInput {
   prisma?: PrismaClientLike;
-  conversation?: PrismaDelegateLike<ConversationRow>;
-  message?: PrismaDelegateLike<MessageRow>;
+  conversation?: PrismaDelegateLike;
+  message?: PrismaDelegateLike;
   /** Nome do campo que guarda o owner na Conversation. Default `ownerId`. Finanças usa `userId`. */
   ownerIdField?: string;
 }
@@ -69,13 +76,13 @@ export function createPrismaChatStore(input: PrismaChatStoreInput): ChatStore {
 
   return {
     async createConversation({ ownerId, title, scope }) {
-      const row = await conversation.create({
+      const row = (await conversation.create({
         data: {
           [ownerIdField]: ownerId,
           title: title ?? "Nova conversa",
           ...(scope !== undefined ? { scope } : {}),
         },
-      });
+      })) as { id: string };
       return { id: row.id };
     },
 
