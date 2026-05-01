@@ -1,0 +1,44 @@
+name: Publish to GitHub Packages
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version (sem 'v' prefix). Se vazio, usa o do package.json."
+        required: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: "https://npm.pkg.github.com"
+          scope: "@paulo-brito-jr"
+
+      - run: pnpm install --frozen-lockfile=false
+
+      - run: pnpm build
+
+      - name: Override version (workflow_dispatch)
+        if: github.event_name == 'workflow_dispatch' && inputs.version != ''
+        run: |
+          npm version ${{ inputs.version }} --no-git-tag-version
+
+      - run: pnpm publish --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,18 +1,58 @@
 {
-  "name": "@brito/ai-kit",
+  "name": "@paulo-brito-jr/ai-kit",
   "version": "0.1.0",
-  "private": true,
   "description": "Kit canônico de chat IA pros projetos do Paulo (Finanças, Brito's Skynet, Maranata, Skynet dashboard).",
+  "license": "MIT",
   "type": "module",
+  "files": [
+    "dist/**",
+    "README.md",
+    "DESIGN.md",
+    "migrations/**"
+  ],
   "exports": {
-    "./types": "./src/types.ts",
-    "./models": "./src/models.ts",
-    "./categorize": "./src/categorize.ts",
-    "./chat-route": "./src/chat-route.ts",
-    "./chat-component": "./src/chat-component.tsx",
-    "./adapters/prisma": "./src/adapters/prisma.ts",
-    "./adapters/supabase": "./src/adapters/supabase.ts"
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
+    },
+    "./models": {
+      "types": "./dist/models.d.ts",
+      "import": "./dist/models.js"
+    },
+    "./categorize": {
+      "types": "./dist/categorize.d.ts",
+      "import": "./dist/categorize.js"
+    },
+    "./chat-route": {
+      "types": "./dist/chat-route.d.ts",
+      "import": "./dist/chat-route.js"
+    },
+    "./chat-component": {
+      "types": "./dist/chat-component.d.ts",
+      "import": "./dist/chat-component.js"
+    },
+    "./adapters/prisma": {
+      "types": "./dist/adapters/prisma.d.ts",
+      "import": "./dist/adapters/prisma.js"
+    },
+    "./adapters/supabase": {
+      "types": "./dist/adapters/supabase.d.ts",
+      "import": "./dist/adapters/supabase.js"
+    }
   },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "prepublishOnly": "npm run build"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Paulo-Brito-Jr/brito-ai-kit.git"
+  },
+  "homepage": "https://github.com/Paulo-Brito-Jr/brito-ai-kit",
   "peerDependencies": {
     "@ai-sdk/anthropic": "^3.0.0",
     "@ai-sdk/openai": "^3.0.0",
@@ -28,7 +68,13 @@
     "react": { "optional": true }
   },
   "devDependencies": {
+    "@ai-sdk/anthropic": "^3.0.71",
+    "@ai-sdk/openai": "^3.0.53",
+    "@ai-sdk/react": "^3.0.170",
     "@types/react": "^19.0.0",
-    "typescript": "^5.6.0"
+    "ai": "^6.0.168",
+    "react": "^19.0.0",
+    "typescript": "^5.6.0",
+    "zod": "^4.3.6"
   }
 }
