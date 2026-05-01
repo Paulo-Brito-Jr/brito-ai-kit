@@ -1,4 +1,4 @@
-import type { LanguageModel, ModelMessage, Tool } from "ai";
+import type { LanguageModel, ModelMessage, ToolSet } from "ai";
 
 export type Role = "user" | "assistant" | "system" | "tool";
 
@@ -56,7 +56,7 @@ export interface ToolContext<Actor = unknown> {
   now: Date;
 }
 
-export type ToolFactory<Actor = unknown> = (ctx: ToolContext<Actor>) => Record<string, Tool>;
+export type ToolFactory<Actor = unknown> = (ctx: ToolContext<Actor>) => ToolSet;
 
 export type SystemPromptBuilder<Actor = unknown> = (actor: Actor) => Promise<string> | string;
 

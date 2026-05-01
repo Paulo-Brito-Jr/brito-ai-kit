@@ -19,36 +19,30 @@ import type {
  *   const store = createSupabaseChatStore({ supabase });
  */
 
-interface SupabaseQueryBuilderLike {
-  select(columns?: string): SupabaseQueryBuilderLike;
-  insert(data: Record<string, unknown>): SupabaseQueryBuilderLike;
-  update(data: Record<string, unknown>): SupabaseQueryBuilderLike;
-  delete(): SupabaseQueryBuilderLike;
-  eq(column: string, value: unknown): SupabaseQueryBuilderLike;
-  order(column: string, opts?: { ascending?: boolean }): SupabaseQueryBuilderLike;
-  limit(n: number): SupabaseQueryBuilderLike;
-  single(): Promise<{ data: unknown; error: { message: string } | null }>;
-  maybeSingle(): Promise<{ data: unknown; error: { message: string } | null }>;
-  then<TR1 = unknown, TR2 = never>(
-    onfulfilled?: (value: { data: unknown; error: { message: string } | null }) => TR1 | PromiseLike<TR1>,
-    onrejected?: (reason: unknown) => TR2 | PromiseLike<TR2>,
-  ): Promise<TR1 | TR2>;
-}
-
+/**
+ * Compatível com `SupabaseClient` do `@supabase/supabase-js`. Tipado de forma
+ * deliberadamente frouxa (`from(): any`) porque o builder fluente do Supabase
+ * tem assinaturas que não conseguem ser captadas por interface manual sem
+ * acoplar com os tipos do pacote oficial. Os pontos onde o kit consome o
+ * resultado fazem cast pra `{ data, error }` e validam runtime.
+ */
 interface SupabaseClientLike {
-  from(table: string): SupabaseQueryBuilderLike;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  from(table: string): any;
 }
 
 interface SupabaseChatStoreInput {
   supabase: SupabaseClientLike;
   conversationsTable?: string;
   messagesTable?: string;
+  /** Nome da coluna que guarda o owner. Default `owner_id`. Brito's Skynet usa `profile_id`. */
+  ownerIdColumn?: string;
 }
 
-function rowToConversation(row: Record<string, unknown>): ConversationRow {
+function rowToConversation(row: Record<string, unknown>, ownerIdColumn: string): ConversationRow {
   return {
     id: String(row.id),
-    ownerId: String(row.owner_id),
+    ownerId: String(row[ownerIdColumn]),
     title: String(row.title ?? "Nova conversa"),
     scope: (row.scope as string | null | undefined) ?? null,
     createdAt: new Date(String(row.created_at)),
@@ -72,13 +66,18 @@ function rowToMessage(row: Record<string, unknown>): MessageRow {
 }
 
 export function createSupabaseChatStore(input: SupabaseChatStoreInput): ChatStore {
-  const { supabase, conversationsTable = "conversations", messagesTable = "messages" } = input;
+  const {
+    supabase,
+    conversationsTable = "conversations",
+    messagesTable = "messages",
+    ownerIdColumn = "owner_id",
+  } = input;
 
   return {
     async createConversation({ ownerId, title, scope }) {
       const result = await supabase
         .from(conversationsTable)
-        .insert({ owner_id: ownerId, title: title ?? "Nova conversa", scope: scope ?? null })
+        .insert({ [ownerIdColumn]: ownerId, title: title ?? "Nova conversa", scope: scope ?? null })
         .select("id")
         .single();
       if (result.error) throw new Error(`createConversation: ${result.error.message}`);
@@ -91,19 +90,19 @@ export function createSupabaseChatStore(input: SupabaseChatStoreInput): ChatStor
       const result = await supabase.from(conversationsTable).select("*").eq("id", id).maybeSingle();
       if (result.error) throw new Error(`getConversation: ${result.error.message}`);
       if (!result.data) return null;
-      return rowToConversation(result.data as Record<string, unknown>);
+      return rowToConversation(result.data as Record<string, unknown>, ownerIdColumn);
     },
 
     async listConversations(ownerId, limit = 30) {
       const result = await supabase
         .from(conversationsTable)
         .select("*")
-        .eq("owner_id", ownerId)
+        .eq(ownerIdColumn, ownerId)
         .order("updated_at", { ascending: false })
         .limit(limit);
       if (result.error) throw new Error(`listConversations: ${result.error.message}`);
       const rows = (result.data ?? []) as Record<string, unknown>[];
-      return rows.map(rowToConversation);
+      return rows.map((r) => rowToConversation(r, ownerIdColumn));
     },
 
     async listMessages(conversationId, limit = 200) {
