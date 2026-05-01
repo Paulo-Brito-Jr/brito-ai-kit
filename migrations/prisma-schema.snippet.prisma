@@ -1,0 +1,41 @@
+// Snippet canônico para projetos que usam Prisma + Postgres.
+// Cole no `prisma/schema.prisma` do projeto. Adapte `String @id` se preferir cuid()
+// (default abaixo) ou uuid via `@default(dbgenerated("gen_random_uuid()"))`.
+//
+// Atenção: o relacionamento com User/Profile do projeto consumidor é INTENCIONAL-
+// MENTE solto — `ownerId` é só String. O kit não conhece o modelo de usuário do
+// projeto. Cada projeto adiciona a relação se quiser (ver exemplo comentado abaixo).
+
+model Conversation {
+  id        String    @id @default(cuid())
+  ownerId   String
+  title     String    @default("Nova conversa")
+  scope     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  messages  Message[]
+
+  // Exemplo: pra adicionar relação forte com User do projeto, descomentar e
+  // adaptar o nome do model:
+  //
+  // user   User   @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@index([ownerId, updatedAt])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  role       String   // "user" | "assistant" | "system" | "tool"
+  content    String   @db.Text
+  toolCalls  Json?    // array de tool calls do assistant (AI SDK)
+  toolCallId String?  // quando role = "tool"
+  model      String?
+  tokensIn   Int?
+  tokensOut  Int?
+  createdAt  DateTime @default(now())
+
+  @@index([conversationId, createdAt])
+}
