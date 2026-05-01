@@ -11,15 +11,18 @@ import type {
  *   model Conversation { id, ownerId, title, scope?, createdAt, updatedAt, messages Message[] }
  *   model Message { id, conversationId, role, content, toolCalls?, toolCallId?, model?, tokensIn?, tokensOut?, createdAt }
  *
- * Uso:
+ * Uso canônico:
  *   import { PrismaClient } from "@prisma/client";
  *   import { createPrismaChatStore } from "@brito/ai-kit/adapters/prisma";
  *   const prisma = new PrismaClient();
  *   const store = createPrismaChatStore({ prisma });
  *
- * Se seu projeto usa nomes de modelo diferentes (ex: AiMessage), passe os
- * delegates explicitamente: `createPrismaChatStore({ conversation: prisma.conversation, message: prisma.aiMessage })`.
- * Recomendado: renomear para `Conversation`/`Message` na Fase 2 — kit simples > flexibilidade prematura.
+ * Schemas legados (Brito's Skynet/Finanças) podem ter nomes diferentes:
+ *   createPrismaChatStore({
+ *     conversation: prisma.conversation,
+ *     message: prisma.aiMessage,
+ *     ownerIdField: "userId",      // se a Conversation usa userId em vez de ownerId
+ *   })
  */
 
 interface PrismaDelegateLike<TRow> {
@@ -39,11 +42,25 @@ interface PrismaChatStoreInput {
   prisma?: PrismaClientLike;
   conversation?: PrismaDelegateLike<ConversationRow>;
   message?: PrismaDelegateLike<MessageRow>;
+  /** Nome do campo que guarda o owner na Conversation. Default `ownerId`. Finanças usa `userId`. */
+  ownerIdField?: string;
+}
+
+function rowToConversation(row: Record<string, unknown>, ownerIdField: string): ConversationRow {
+  return {
+    id: String(row.id),
+    ownerId: String(row[ownerIdField]),
+    title: String(row.title ?? "Nova conversa"),
+    scope: (row.scope as string | null | undefined) ?? null,
+    createdAt: new Date(row.createdAt as string | Date),
+    updatedAt: new Date(row.updatedAt as string | Date),
+  };
 }
 
 export function createPrismaChatStore(input: PrismaChatStoreInput): ChatStore {
   const conversation = input.conversation ?? input.prisma?.conversation;
   const message = input.message ?? input.prisma?.message;
+  const ownerIdField = input.ownerIdField ?? "ownerId";
   if (!conversation || !message) {
     throw new Error(
       "createPrismaChatStore: provide { prisma } or both { conversation, message } delegates",
@@ -53,29 +70,50 @@ export function createPrismaChatStore(input: PrismaChatStoreInput): ChatStore {
   return {
     async createConversation({ ownerId, title, scope }) {
       const row = await conversation.create({
-        data: { ownerId, title: title ?? "Nova conversa", scope: scope ?? null },
+        data: {
+          [ownerIdField]: ownerId,
+          title: title ?? "Nova conversa",
+          ...(scope !== undefined ? { scope } : {}),
+        },
       });
       return { id: row.id };
     },
 
     async getConversation(id) {
-      return conversation.findUnique({ where: { id } });
+      const row = (await conversation.findUnique({ where: { id } })) as
+        | Record<string, unknown>
+        | null;
+      if (!row) return null;
+      return rowToConversation(row, ownerIdField);
     },
 
     async listConversations(ownerId, limit = 30) {
-      return conversation.findMany({
-        where: { ownerId },
+      const rows = (await conversation.findMany({
+        where: { [ownerIdField]: ownerId },
         orderBy: { updatedAt: "desc" },
         take: limit,
-      });
+      })) as Record<string, unknown>[];
+      return rows.map((r) => rowToConversation(r, ownerIdField));
     },
 
     async listMessages(conversationId, limit = 200) {
-      return message.findMany({
+      const rows = (await message.findMany({
         where: { conversationId },
         orderBy: { createdAt: "asc" },
         take: limit,
-      });
+      })) as Record<string, unknown>[];
+      return rows.map((r) => ({
+        id: String(r.id),
+        conversationId: String(r.conversationId),
+        role: r.role as Role,
+        content: String(r.content),
+        toolCalls: (r.toolCalls ?? null) as unknown,
+        toolCallId: (r.toolCallId as string | null | undefined) ?? null,
+        model: (r.model as string | null | undefined) ?? null,
+        tokensIn: (r.tokensIn as number | null | undefined) ?? null,
+        tokensOut: (r.tokensOut as number | null | undefined) ?? null,
+        createdAt: new Date(r.createdAt as string | Date),
+      }));
     },
 
     async appendMessage(input: AppendMessageInput) {
