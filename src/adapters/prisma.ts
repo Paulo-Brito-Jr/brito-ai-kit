@@ -26,19 +26,15 @@ import type {
  */
 
 /**
- * Tipagem deliberadamente frouxa — delegates do Prisma têm generics complexos
- * (DefaultArgs, PrismaClientOptions, shape do model com campos do projeto)
- * que mudam por projeto. O adapter castea internamente os retornos pra
- * Record<string, unknown> e depois pra ConversationRow/MessageRow via funções
- * `rowTo*`, então o tipo do delegate só precisa permitir as chamadas.
+ * Tipagem deliberadamente frouxa (`any`) — delegates do Prisma têm generics
+ * complexos (DefaultArgs, PrismaClientOptions, FindManyArgs concretos por
+ * model) que mudam por projeto e nao casam com interfaces manuais. O adapter
+ * castea internamente os retornos pra Record<string, unknown> e depois pra
+ * ConversationRow/MessageRow via `rowTo*` — o type safety está nessas
+ * funções, não no delegate.
  */
-interface PrismaDelegateLike {
-  create(args: { data: Record<string, unknown> }): Promise<unknown>;
-  findUnique(args: { where: { id: string } }): Promise<unknown>;
-  findMany(args: Record<string, unknown>): Promise<unknown>;
-  update(args: { where: { id: string }; data: Record<string, unknown> }): Promise<unknown>;
-  delete(args: { where: { id: string } }): Promise<unknown>;
-}
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type PrismaDelegateLike = any;
 
 interface PrismaClientLike {
   conversation: PrismaDelegateLike;
