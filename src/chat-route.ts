@@ -71,8 +71,11 @@ export function createChatRoute<Actor>(config: ChatRouteConfig<Actor>) {
     }
 
     const ctx = { actor, conversationId, now: new Date() };
-    const system = await systemPrompt(actor);
-    const modelMessages: ModelMessage[] = await convertToModelMessages(body.messages);
+    const [system, resolvedTools, modelMessages] = await Promise.all([
+      Promise.resolve(systemPrompt(actor)),
+      Promise.resolve(tools(ctx)),
+      convertToModelMessages(body.messages),
+    ]);
 
     const lastUserMessage = body.messages[body.messages.length - 1];
     const userText = extractText(lastUserMessage);
@@ -81,7 +84,7 @@ export function createChatRoute<Actor>(config: ChatRouteConfig<Actor>) {
       model,
       system,
       messages: modelMessages,
-      tools: tools(ctx),
+      tools: resolvedTools,
       stopWhen: stepCountIs(maxSteps),
       onFinish: async ({ text, usage, toolCalls }) => {
         try {

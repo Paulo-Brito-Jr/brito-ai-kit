@@ -56,7 +56,7 @@ export interface ToolContext<Actor = unknown> {
   now: Date;
 }
 
-export type ToolFactory<Actor = unknown> = (ctx: ToolContext<Actor>) => ToolSet;
+export type ToolFactory<Actor = unknown> = (ctx: ToolContext<Actor>) => ToolSet | Promise<ToolSet>;
 
 export type SystemPromptBuilder<Actor = unknown> = (actor: Actor) => Promise<string> | string;
 
