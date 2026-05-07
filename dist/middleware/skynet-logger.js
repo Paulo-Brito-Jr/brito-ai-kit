@@ -92,18 +92,21 @@ export function withSkynetLogger(model, opts) {
         // No-op se config ausente
         return model;
     }
-    const log = async (inputTokens, outputTokens, durationMs, status, erro, metadata) => {
+    const log = async (inputTokens, outputTokens, durationMs, status, erro) => {
         const payload = {
-            modelo: model.modelId,
+            tipo: "chat",
+            prompt: "(via ai-sdk middleware — prompt não capturado)",
+            status,
+            modelo_usado: model.modelId,
+            provider_usado: model.provider,
+            tokens_in: inputTokens,
+            tokens_out: outputTokens,
             custo_usd: calcularCustoUsd(model.modelId, inputTokens, outputTokens, opts.pricing),
-            input_tokens: inputTokens,
-            output_tokens: outputTokens,
             duracao_ms: durationMs,
             fonte: opts.fonte,
-            status,
-            erro: erro ?? null,
+            ultimo_erro: erro ?? null,
             concluido_em: new Date().toISOString(),
-            metadata: { provider: model.provider, ...(metadata ?? {}) },
+            origem: "ai-sdk-middleware",
         };
         try {
             await inserirAiJob(supabaseUrl, serviceKey, payload);
@@ -130,7 +133,7 @@ export function withSkynetLogger(model, opts) {
             }
             catch (e) {
                 const msg = e instanceof Error ? e.message : String(e);
-                void log(0, 0, Date.now() - start, "erro", msg);
+                void log(0, 0, Date.now() - start, "failed", msg);
                 throw e;
             }
         },

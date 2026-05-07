@@ -81,17 +81,28 @@ function calcularCustoUsd(
   return (inputTokens * p.input + outputTokens * p.output) / 1_000_000;
 }
 
+// Schema da ai_jobs do Skynet (migration 0043 + 0062):
+// - tipo: 'chat' default p/ chamadas via middleware (CHECK enum, NOT NULL)
+// - prompt: texto NOT NULL (placeholder pra middleware — não temos o prompt aqui)
+// - status: enum (pending/running/done/failed/cancelled). Mapeamos "erro" → "failed".
+// - tokens_in/tokens_out (não input_tokens/output_tokens)
+// - modelo_usado (não modelo); provider_usado (não provider)
+// - custo_usd, concluido_em
+// - fonte, duracao_ms (adicionados via migration 0062 do Skynet)
 interface AiJobInsert {
-  modelo: string;
+  tipo: "chat";
+  prompt: string;
+  status: "done" | "failed";
+  modelo_usado: string;
+  provider_usado: string;
+  tokens_in: number;
+  tokens_out: number;
   custo_usd: number;
-  input_tokens: number;
-  output_tokens: number;
   duracao_ms: number;
   fonte: string;
-  status: "done" | "erro";
-  erro?: string | null;
+  ultimo_erro?: string | null;
   concluido_em: string;
-  metadata?: Record<string, unknown>;
+  origem: "ai-sdk-middleware";
 }
 
 async function inserirAiJob(
@@ -143,21 +154,23 @@ export function withSkynetLogger(
     inputTokens: number,
     outputTokens: number,
     durationMs: number,
-    status: "done" | "erro",
+    status: "done" | "failed",
     erro?: string,
-    metadata?: Record<string, unknown>,
   ): Promise<void> => {
     const payload: AiJobInsert = {
-      modelo: model.modelId,
+      tipo: "chat",
+      prompt: "(via ai-sdk middleware — prompt não capturado)",
+      status,
+      modelo_usado: model.modelId,
+      provider_usado: model.provider,
+      tokens_in: inputTokens,
+      tokens_out: outputTokens,
       custo_usd: calcularCustoUsd(model.modelId, inputTokens, outputTokens, opts.pricing),
-      input_tokens: inputTokens,
-      output_tokens: outputTokens,
       duracao_ms: durationMs,
       fonte: opts.fonte,
-      status,
-      erro: erro ?? null,
+      ultimo_erro: erro ?? null,
       concluido_em: new Date().toISOString(),
-      metadata: { provider: model.provider, ...(metadata ?? {}) },
+      origem: "ai-sdk-middleware",
     };
     try {
       await inserirAiJob(supabaseUrl, serviceKey, payload);
@@ -187,7 +200,7 @@ export function withSkynetLogger(
             return result;
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e);
-            void log(0, 0, Date.now() - start, "erro", msg);
+            void log(0, 0, Date.now() - start, "failed", msg);
             throw e;
           }
         },
