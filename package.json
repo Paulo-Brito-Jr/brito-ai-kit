@@ -1,6 +1,6 @@
 {
   "name": "@paulo-brito-jr/ai-kit",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Kit canônico de chat IA pros projetos do Paulo (Finanças, Brito's Skynet, Maranata, Skynet dashboard).",
   "license": "MIT",
   "type": "module",
@@ -38,6 +38,10 @@
     "./adapters/supabase": {
       "types": "./dist/adapters/supabase.d.ts",
       "import": "./dist/adapters/supabase.js"
+    },
+    "./middleware/skynet-logger": {
+      "types": "./dist/middleware/skynet-logger.d.ts",
+      "import": "./dist/middleware/skynet-logger.js"
     }
   },
   "scripts": {
